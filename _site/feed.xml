@@ -1,3 +1,235 @@
-<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.5.1">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2017-07-30T01:48:51+08:00</updated><id>http://localhost:4000/</id><title type="html">gaoyan blog</title><subtitle></subtitle><author><name>gaoyan</name></author><entry><title type="html">Begining</title><link href="http://localhost:4000/2017/07/30/blog-begining/" rel="alternate" type="text/html" title="Begining" /><published>2017-07-30T00:00:00+08:00</published><updated>2017-07-30T00:00:00+08:00</updated><id>http://localhost:4000/2017/07/30/blog-begining</id><content type="html" xml:base="http://localhost:4000/2017/07/30/blog-begining/">&lt;h1 id=&quot;积跬步致千里&quot;&gt;积跬步，致千里&lt;/h1&gt;
+<?xml version="1.0" encoding="utf-8"?><feed xmlns="http://www.w3.org/2005/Atom" ><generator uri="https://jekyllrb.com/" version="3.5.1">Jekyll</generator><link href="http://localhost:4000/feed.xml" rel="self" type="application/atom+xml" /><link href="http://localhost:4000/" rel="alternate" type="text/html" /><updated>2017-09-05T21:33:47+08:00</updated><id>http://localhost:4000/</id><title type="html">gaoyan blog</title><subtitle></subtitle><author><name>gaoyan</name></author><entry><title type="html">openstack虚拟机集群迁移</title><link href="http://localhost:4000/2017/09/05/openstack%E8%99%9A%E6%8B%9F%E6%9C%BA%E9%9B%86%E7%BE%A4%E8%BF%81%E7%A7%BB/" rel="alternate" type="text/html" title="openstack虚拟机集群迁移" /><published>2017-09-05T00:00:00+08:00</published><updated>2017-09-05T00:00:00+08:00</updated><id>http://localhost:4000/2017/09/05/openstack%E8%99%9A%E6%8B%9F%E6%9C%BA%E9%9B%86%E7%BE%A4%E8%BF%81%E7%A7%BB</id><content type="html" xml:base="http://localhost:4000/2017/09/05/openstack%E8%99%9A%E6%8B%9F%E6%9C%BA%E9%9B%86%E7%BE%A4%E8%BF%81%E7%A7%BB/">&lt;h2 id=&quot;一-openstack虚拟机集群迁移&quot;&gt;一. openstack虚拟机集群迁移&lt;/h2&gt;
+
+&lt;h3 id=&quot;1-环境介绍&quot;&gt;1. 环境介绍&lt;/h3&gt;
+&lt;p&gt;现在有两个独立openstack＋ceph集群A和B，现在要把B集群的虚拟机冷迁移至A集群, 主要保证虚拟机环境在迁移后数据完整，网络环境相同&lt;/p&gt;
+
+&lt;h3 id=&quot;2-信息收集&quot;&gt;2. 信息收集&lt;/h3&gt;
+&lt;ul&gt;
+  &lt;li&gt;A集群，配置和B集群相同网络环境&lt;/li&gt;
+  &lt;li&gt;B集群，记录一下虚拟机的详细信息，包括IP，flavor,了解虚拟机运行服务&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;h3 id=&quot;3-卷导出b集群&quot;&gt;3. 卷导出(B集群)&lt;/h3&gt;
+&lt;h4 id=&quot;31-找到卷id&quot;&gt;3.1 找到卷id&lt;/h4&gt;
+&lt;p&gt;首先确认卷id，不管是什么方式启动，boot from volume 还是boot from image 都可以找到对应在ceph里的卷信息,这里假设boot from image
+那么在ceph中对应的就是虚拟机uuiid&lt;/p&gt;
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;nova show vm1
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;rbd -p vms ls | grep &lt;span class=&quot;nv&quot;&gt;$UUID&lt;/span&gt;
+95995bfc-a6c3-482f-b0ad-dfd7afdef3cd_disk
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;32-导出卷&quot;&gt;3.2 导出卷&lt;/h4&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;rbd &lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;vms/95995bfc-a6c3-482f-b0ad-dfd7afdef3cd_disk volume1
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;4-卷导入a集群&quot;&gt;4 卷导入(A集群)&lt;/h3&gt;
+&lt;h4 id=&quot;41-创建volume&quot;&gt;4.1 创建volume&lt;/h4&gt;
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cinder create --name vm1_volume 100G
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;42-导入卷&quot;&gt;4.2 导入卷&lt;/h4&gt;
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;rbd import volume1 --dest-pool volumes
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;43-替换卷&quot;&gt;4.3 替换卷&lt;/h4&gt;
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;rbd -p volumes rm &lt;span class=&quot;nv&quot;&gt;$vm1_volume&lt;/span&gt;
+rbd rename volumes/volume1 volumes/&lt;span class=&quot;nv&quot;&gt;$vm1_volume&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;44-设置卷启动&quot;&gt;4.4 设置卷启动&lt;/h3&gt;
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;cinder &lt;span class=&quot;nb&quot;&gt;set&lt;/span&gt;-bootable &lt;span class=&quot;nv&quot;&gt;$vm1_volume&lt;/span&gt; &lt;span class=&quot;nb&quot;&gt;true&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h4 id=&quot;45-启动云主机&quot;&gt;4.5 启动云主机&lt;/h4&gt;
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;nova boot --boot-volume 3526da21-e94c-48f0-bef9-39c779462266  --flavor 79602f32-3a52-4cfb-b35c-78d24abef809 --nic net-id&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;2d9cc667-629d-4ebd-aad0-e56a3b4c1264,v4-fixed-ip&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;10.10.10.100 vm1
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;最后选择合适的flavor,neutron,fix_id即可&lt;/p&gt;
+
+&lt;h2 id=&quot;总结&quot;&gt;总结&lt;/h2&gt;
+
+&lt;p&gt;以上操作为整个大概操作流程，主要在新平台上创建一个卷，然后导入之前的卷，并且改名字替换，这样我们创建的卷就是带有之前虚拟机数据的新卷，然后在创建虚拟机就可以了&lt;/p&gt;</content><author><name>gaoyan</name></author><category term="openstack" /><category term="cinder" /><category term="volume" /><summary type="html">一. openstack虚拟机集群迁移</summary></entry><entry><title type="html">mac下科学上网</title><link href="http://localhost:4000/2017/08/05/mac%E4%B8%8B%E7%A7%91%E5%AD%A6%E4%B8%8A%E7%BD%91/" rel="alternate" type="text/html" title="mac下科学上网" /><published>2017-08-05T00:00:00+08:00</published><updated>2017-08-05T00:00:00+08:00</updated><id>http://localhost:4000/2017/08/05/mac%E4%B8%8B%E7%A7%91%E5%AD%A6%E4%B8%8A%E7%BD%91</id><content type="html" xml:base="http://localhost:4000/2017/08/05/mac%E4%B8%8B%E7%A7%91%E5%AD%A6%E4%B8%8A%E7%BD%91/">&lt;h2 id=&quot;一背景&quot;&gt;一、背景&lt;/h2&gt;
+
+&lt;h3 id=&quot;11-科学上网的重要性&quot;&gt;1.1 科学上网的重要性&lt;/h3&gt;
+
+&lt;p&gt;目前受于GFW的访问控制，我们在获取最新只是的途径上远低于其他国家，技术上的一些问题，靠国内的一些搜索引擎实在无法解决，作为一个IT工作者，科学上网应该是必备的第一步&lt;/p&gt;
+
+&lt;h2 id=&quot;二-工具介绍&quot;&gt;二、 工具介绍&lt;/h2&gt;
+&lt;h3 id=&quot;21-vps&quot;&gt;2.1 vps&lt;/h3&gt;
+
+&lt;p&gt;目前vps的厂商还是很多的，根据自己的需要，选择一个适合的vps 知乎上有一篇文章介绍了一些比较好的vps 
+&lt;a href=&quot;https://www.zhihu.com/question/20800554&quot;&gt;有哪些便宜稳定，速度也不错的Linux VPS 推荐？&lt;/a&gt;&lt;/p&gt;
+
+&lt;h3 id=&quot;22-操作系统&quot;&gt;2.2 操作系统&lt;/h3&gt;
+
+&lt;p&gt;主要介绍unix和linux系统&lt;/p&gt;
+
+&lt;h2 id=&quot;三-shadowsocks-server&quot;&gt;三、 shadowsocks server&lt;/h2&gt;
+
+&lt;p&gt;首先要连接到你的vps，假设现在有一台centos7的机器&lt;/p&gt;
+
+&lt;h3 id=&quot;31--安装shadowsocks&quot;&gt;3.1  安装shadowsocks&lt;/h3&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;yum install python-pip -y
+pip install shadowsocks
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;32-shadowsocks-配置修改&quot;&gt;3.2 shadowsocks 配置修改&lt;/h3&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;mkdir /etc/shadowsocks
+vim /etc/shadowsocks/shadowsocks.json
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;div class=&quot;language-json highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&quot;server&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;0.0.0.0&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&quot;server_port&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2048&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&quot;password&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;whatfuckGFW&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&quot;timeout&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;300&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&quot;method&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;aes-256-cfb&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&quot;fast_open&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;kc&quot;&gt;false&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&quot;workers&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;w&quot;&gt; &lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;33-启动服务&quot;&gt;3.3 启动服务&lt;/h3&gt;
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo ssserver -c /etc/shadowsocks/shadowsocks.json -d start 
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;h2 id=&quot;四shadowsocks-client&quot;&gt;四、shadowsocks client&lt;/h2&gt;
+
+&lt;p&gt;windows 和 mac 下都有shadowsocks的客户端，下载，然后添加对应server的配置即可
+说下关于不使用客户端，如果连接&lt;/p&gt;
+
+&lt;h3 id=&quot;41-iterm配置&quot;&gt;4.1 iterm配置&lt;/h3&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;pip install shadowsocks
+vim client.json
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;div class=&quot;language-json highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;p&quot;&gt;{&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&quot;server&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;xx.xx.xx.xx&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&quot;server_port&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;2048&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&quot;local_port&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;1080&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&quot;password&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;whatfuckGFW&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&quot;timeout&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;mi&quot;&gt;300&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;,&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+    &lt;/span&gt;&lt;span class=&quot;nt&quot;&gt;&quot;method&quot;&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;:&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;aes-256-cfb&quot;&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;span class=&quot;p&quot;&gt;}&lt;/span&gt;&lt;span class=&quot;w&quot;&gt;
+&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;sslocal -c client.json -d start
+sslocal -c client.json -d stop&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;brew install privoxy
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;p&gt;修改 /usr/local/etc/privoxy/config 修改添加如下两行&lt;/p&gt;
+
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;listen-address  127.0.0.1:8118
+forward-socks5 / localhost:1080 .
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;终端启动代理服务&lt;/p&gt;
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;sudo /usr/local/sbin/privoxy /usr/local/etc/privoxy/config
+&lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;http_proxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;http://127.0.0.1:8118&quot;&lt;/span&gt;;
+&lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;https_proxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$http_proxy&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+&lt;p&gt;此时你的当前窗口就可以通过代理去访问,这部分可以添加到配置文件中.bashrc
+测试一下代理ip&lt;/p&gt;
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;curl ip.gs
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;
+
+&lt;h3 id=&quot;42-chrome配置&quot;&gt;4.2 chrome配置&lt;/h3&gt;
+
+&lt;p&gt;chrome配置需要安装一个插件，Proxy SwitchyOmega
+&lt;a href=&quot;https://chrome.google.com/webstore/search/SwitchyOmega&quot;&gt;Proxy SwitchyOmega&lt;/a&gt;&lt;/p&gt;
+
+&lt;h4 id=&quot;proxy&quot;&gt;proxy&lt;/h4&gt;
+&lt;p&gt;选项-&amp;gt;proxy-&amp;gt;&lt;/p&gt;
+&lt;ul&gt;
+  &lt;li&gt;代理协议:SOCKS5&lt;/li&gt;
+  &lt;li&gt;代理服务区:127.0.0.1&lt;/li&gt;
+  &lt;li&gt;代理端口:1080&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;-&amp;gt;应用选项&lt;/p&gt;
+
+&lt;h4 id=&quot;auto-switch&quot;&gt;auto switch&lt;/h4&gt;
+&lt;p&gt;选项-&amp;gt;auto switch-&amp;gt;&lt;/p&gt;
+&lt;ul&gt;
+  &lt;li&gt;点击添加规则列表，然后在条件类型为规则列表规则的一行，选择情景模式为auto switch&lt;/li&gt;
+  &lt;li&gt;选择下面的规则列表格式为AutoProxy&lt;/li&gt;
+  &lt;li&gt;规则列表网址:https://raw.githubusercontent.com/gfwlist/gfwlist/master/gfwlist.txt&lt;/li&gt;
+  &lt;li&gt;立即更新情景模式&lt;/li&gt;
+&lt;/ul&gt;
+
+&lt;p&gt;-&amp;gt;应用选项&lt;/p&gt;
+
+&lt;p&gt;此时配置已经OK，proxy模式为全部流量代理，auto switch模式会根据规则匹配需要代理的流量
+如果想要一些自动化的工作，可以写些小脚本&lt;/p&gt;
+
+&lt;h2 id=&quot;五个人配置&quot;&gt;五、个人配置&lt;/h2&gt;
+&lt;div class=&quot;language-bash highlighter-rouge&quot;&gt;&lt;pre class=&quot;highlight&quot;&gt;&lt;code&gt;&lt;span class=&quot;c&quot;&gt;#sudo /usr/local/sbin/privoxy /usr/local/etc/privoxy/config&lt;/span&gt;
+&lt;span class=&quot;c&quot;&gt;#8118&lt;/span&gt;
+&lt;span class=&quot;c&quot;&gt;# curl ip.gs&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;function &lt;/span&gt;proxy_kill&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    ps -ef | grep privoxy | awk &lt;span class=&quot;s1&quot;&gt;'{print $2}'&lt;/span&gt; | sudo xargs &lt;span class=&quot;nb&quot;&gt;kill&lt;/span&gt; -9  2&amp;gt;&amp;gt; /dev/null
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;function &lt;/span&gt;proxy_off&lt;span class=&quot;o&quot;&gt;(){&lt;/span&gt;
+    proxy_kill
+    &lt;span class=&quot;nb&quot;&gt;unset &lt;/span&gt;http_proxy
+    &lt;span class=&quot;nb&quot;&gt;unset &lt;/span&gt;https_proxy
+    &lt;span class=&quot;nb&quot;&gt;echo&lt;/span&gt; -e &lt;span class=&quot;s2&quot;&gt;&quot;iterm shadowsocks proxy off&quot;&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;span class=&quot;k&quot;&gt;function &lt;/span&gt;proxy_on&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt; &lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    proxy_kill
+    sleep 2
+    sudo /usr/local/sbin/privoxy /usr/local/etc/privoxy/config
+    &lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;no_proxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;localhost,127.0.0.1,localaddress,.localdomain.com&quot;&lt;/span&gt;
+    &lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;http_proxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;s2&quot;&gt;&quot;http://127.0.0.1:8118&quot;&lt;/span&gt;
+    &lt;span class=&quot;nb&quot;&gt;export &lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;https_proxy&lt;/span&gt;&lt;span class=&quot;o&quot;&gt;=&lt;/span&gt;&lt;span class=&quot;nv&quot;&gt;$http_proxy&lt;/span&gt;
+    &lt;span class=&quot;nb&quot;&gt;echo&lt;/span&gt; -e &lt;span class=&quot;s2&quot;&gt;&quot;iterm shadowsocks proxy on&quot;&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;function &lt;/span&gt;ss_off&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    sudo sslocal -c /Users/gaoyan/data/shadowsocks/client.json -d stop 2&amp;gt;&amp;gt; /dev/null
+    ps -ef | grep sslocal | awk &lt;span class=&quot;s1&quot;&gt;'{print $2}'&lt;/span&gt; | sudo xargs &lt;span class=&quot;nb&quot;&gt;kill&lt;/span&gt; -9  2&amp;gt;&amp;gt; /dev/null
+    &lt;span class=&quot;nb&quot;&gt;echo&lt;/span&gt; -e &lt;span class=&quot;s1&quot;&gt;'shadowsocks off'&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;function &lt;/span&gt;ss_on&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    ss_off
+    sleep 2
+    sudo sslocal -c /Users/gaoyan/data/shadowsocks/client.json -d start 2&amp;gt;&amp;gt; /dev/null
+    &lt;span class=&quot;nb&quot;&gt;echo&lt;/span&gt; -e &lt;span class=&quot;s1&quot;&gt;'shadowsocks on'&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+
+&lt;span class=&quot;k&quot;&gt;function &lt;/span&gt;vpn_off&lt;span class=&quot;o&quot;&gt;()&lt;/span&gt;
+&lt;span class=&quot;o&quot;&gt;{&lt;/span&gt;
+    ss_off
+    proxy_off 
+&lt;span class=&quot;o&quot;&gt;}&lt;/span&gt;
+&lt;/code&gt;&lt;/pre&gt;
+&lt;/div&gt;</content><author><name>gaoyan</name></author><category term="mac" /><category term="ss" /><category term="chrome" /><category term="iterm" /><summary type="html">一、背景</summary></entry><entry><title type="html">Begining</title><link href="http://localhost:4000/2017/07/30/blog-begining/" rel="alternate" type="text/html" title="Begining" /><published>2017-07-30T00:00:00+08:00</published><updated>2017-07-30T00:00:00+08:00</updated><id>http://localhost:4000/2017/07/30/blog-begining</id><content type="html" xml:base="http://localhost:4000/2017/07/30/blog-begining/">&lt;h1 id=&quot;积跬步致千里&quot;&gt;积跬步，致千里&lt;/h1&gt;
 
 &lt;h2 id=&quot;一直想写个东西记录一下学习的点点滴滴无奈总是拖延先立个flag慢慢补充&quot;&gt;一直想写个东西记录一下学习的点点滴滴，无奈总是拖延，先立个flag，慢慢补充&lt;/h2&gt;</content><author><name>gaoyan</name></author><category term="life" /><summary type="html">积跬步，致千里</summary></entry></feed>
