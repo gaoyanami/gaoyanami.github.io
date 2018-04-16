@@ -78,11 +78,4 @@ featured-condition-size: 1              # A tag will be featured if the size of 
 
 # Friends
 friends: [
-    {
-        title: "int32bit",
-        href: "http://int32bit.me"
-    },{
-        title: "God Lei",
-        href: "http://xcodest.me/"
-    } 
 ]
